@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { MapPin, Users, AlertTriangle, Search } from "lucide-react";
-import { useTheme } from "@/app/contexts/theme-context";
-import { useSiteFilter } from "@/app/contexts/site-filter-context";
-import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
+import { useTheme } from "../contexts/theme-context";
+import { useSiteFilter } from "../contexts/site-filter-context";
+import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 import { toast } from "sonner";
 import { getSites } from "@/api/siteAPI";
 

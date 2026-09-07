@@ -7,6 +7,7 @@ interface ThemeContextType {
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
   colors: {
+    border: string;
     background: string;
     surface: string;
     primaryText: string;

@@ -4,16 +4,13 @@ import {
   Mail,
   Phone,
   MapPin,
-  Calendar,
   FileText,
   Edit,
   Download,
   CheckCircle2,
-  Users,
-  Shield,
-  Network,
   UserX,
   Trash2,
+  IdCard,
 } from "lucide-react";
 import { TrainingMatrix } from "../components/Training-Matrix/training-matrix";
 import { LegalAppointments } from "./legal-appointments";
@@ -34,12 +31,7 @@ type TabType =
   | "medical"
   | "ppe"
   | "documents";
-type EditTabType =
-  | "personal"
-  | "contact"
-  | "reporting"
-  | "employment"
-  | "emergency";
+type EditTabType = "personal" | "contact" | "employment" | "emergency";
 
 const tabs = [
   { id: "personal" as TabType, label: "Personal Details" },
@@ -53,7 +45,6 @@ const tabs = [
 const editTabs: { id: EditTabType; label: string }[] = [
   { id: "personal", label: "Personal" },
   { id: "contact", label: "Contact" },
-  { id: "reporting", label: "Reporting" },
   { id: "employment", label: "Employment" },
   { id: "emergency", label: "Emergency" },
 ];
@@ -65,7 +56,35 @@ const sites = [
   "Pretoria Branch",
 ];
 
+const employmentTypes = ["Permanent", "Contract", "Temporary"];
+const complianceOptions = [
+  { value: "compliant", label: "Compliant" },
+  { value: "review", label: "Review Needed" },
+  { value: "action", label: "Action Required" },
+];
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+function calculateServiceLength(startDate: string): string {
+  if (!startDate) return "N/A";
+  const start = new Date(startDate);
+  const now = new Date();
+  const years = now.getFullYear() - start.getFullYear();
+  const months = now.getMonth() - start.getMonth();
+
+  let totalMonths = years * 12 + months;
+  if (totalMonths < 0) totalMonths = 0;
+  const yearsPart = Math.floor(totalMonths / 12);
+  const monthsPart = totalMonths % 12;
+
+  if (yearsPart === 0) {
+    return `${monthsPart} month${monthsPart !== 1 ? "s" : ""}`;
+  } else if (monthsPart === 0) {
+    return `${yearsPart} year${yearsPart !== 1 ? "s" : ""}`;
+  } else {
+    return `${yearsPart} year${yearsPart !== 1 ? "s" : ""}, ${monthsPart} month${monthsPart !== 1 ? "s" : ""}`;
+  }
+}
 
 export function EmployeeProfile({
   employee,
@@ -77,7 +96,6 @@ export function EmployeeProfile({
   const [editTab, setEditTab] = useState<EditTabType>("personal");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  // Add to state in EmployeeProfile
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [confirmModal, setConfirmModal] = useState<
     null | "deactivate" | "delete"
@@ -85,14 +103,15 @@ export function EmployeeProfile({
   const [isActioning, setIsActioning] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const { moveToRecycleBin } = useRecycleBin();
-  // Local copy of employee for live display (updated after save)
+
   const [localEmployee, setLocalEmployee] = useState(employee);
 
-  // Edit form state — mirrors all editable fields
+  const [profilePicUploading, setProfilePicUploading] = useState(false);
+  const [idDocUploading, setIdDocUploading] = useState(false);
+
   const [editForm, setEditForm] = useState({
     full_name: employee.fullName ?? "",
     date_of_birth: employee.dateOfBirth?.split("T")[0] ?? "",
-    id_number: employee.idNumber ?? "",
     gender: employee.gender ?? "",
     nationality: employee.nationality ?? "",
     email: employee.email ?? "",
@@ -100,16 +119,10 @@ export function EmployeeProfile({
     mobile: employee.mobile ?? "",
     address: employee.address ?? "",
     reporting_manager: employee.reportingManager ?? "",
-    reporting_manager_id: employee.reportingManagerId ?? "",
-    reporting_manager_job_title: employee.reportingManagerJobTitle ?? "",
-    reporting_manager_legal_appointment:
-      employee.reportingManagerLegalAppointment ?? "",
-    department: employee.department ?? "",
-    division: employee.division ?? "",
-    organisational_level: employee.organisationalLevel ?? "",
     job_title: employee.jobTitle ?? "",
     site_location: employee.siteLocation ?? "",
     employment_type: employee.employmentType ?? "",
+    compliance_status: employee.complianceStatus ?? "compliant",
     salary_grade: employee.salaryGrade ?? "",
     start_date: employee.startDate?.split("T")[0] ?? "",
     contract_end_date: employee.contractEndDate?.split("T")[0] ?? "",
@@ -128,6 +141,35 @@ export function EmployeeProfile({
     ) =>
       setEditForm((prev) => ({ ...prev, [field]: e.target.value }));
 
+  const mapSavedToLocal = (saved: any) => ({
+    ...localEmployee,
+    fullName: saved.full_name,
+    dateOfBirth: saved.date_of_birth,
+    gender: saved.gender,
+    nationality: saved.nationality,
+    email: saved.email,
+    phone: saved.phone,
+    mobile: saved.mobile,
+    address: saved.address,
+    reportingManager: saved.reporting_manager,
+    jobTitle: saved.job_title,
+    siteLocation: saved.site_location,
+    employmentType: saved.employment_type,
+    complianceStatus: saved.compliance_status,
+    salaryGrade: saved.salary_grade,
+    startDate: saved.start_date,
+    contractEndDate: saved.contract_end_date,
+    workSchedule: saved.work_schedule,
+    emergencyContact: saved.emergency_contact,
+    relationship: saved.relationship,
+    emergencyPhone: saved.emergency_phone,
+    status: saved.status,
+    idDocumentFileName: saved.id_document_file_name,
+    idDocumentUrl: saved.id_document_url,
+    profilePictureFileName: saved.profile_picture_file_name,
+    profilePictureUrl: saved.profile_picture_url,
+  });
+
   const handleSave = async () => {
     setIsSaving(true);
     setSaveError(null);
@@ -144,41 +186,10 @@ export function EmployeeProfile({
       }
 
       const saved = await response.json();
-
-      // Map snake_case DB response → camelCase local state
-      const updated = {
-        ...localEmployee,
-        fullName: saved.full_name,
-        dateOfBirth: saved.date_of_birth,
-        idNumber: saved.id_number,
-        gender: saved.gender,
-        nationality: saved.nationality,
-        email: saved.email,
-        phone: saved.phone,
-        mobile: saved.mobile,
-        address: saved.address,
-        reportingManager: saved.reporting_manager,
-        reportingManagerId: saved.reporting_manager_id,
-        reportingManagerJobTitle: saved.reporting_manager_job_title,
-        reportingManagerLegalAppointment:
-          saved.reporting_manager_legal_appointment,
-        department: saved.department,
-        division: saved.division,
-        organisationalLevel: saved.organisational_level,
-        jobTitle: saved.job_title,
-        siteLocation: saved.site_location,
-        employmentType: saved.employment_type,
-        salaryGrade: saved.salary_grade,
-        startDate: saved.start_date,
-        contractEndDate: saved.contract_end_date,
-        workSchedule: saved.work_schedule,
-        emergencyContact: saved.emergency_contact,
-        relationship: saved.relationship,
-        emergencyPhone: saved.emergency_phone,
-      };
+      const updated = mapSavedToLocal(saved);
 
       setLocalEmployee(updated);
-      onEmployeeUpdate?.(updated); // sync workforce list if provided
+      onEmployeeUpdate?.(updated);
       setShowEditModal(false);
     } catch (err: any) {
       setSaveError(err.message ?? "Unknown error");
@@ -187,14 +198,16 @@ export function EmployeeProfile({
     }
   };
 
-  // Add these two handlers alongside handleSave
   const handleDeactivate = async () => {
     setIsActioning(true);
     setActionError(null);
     try {
       const response = await fetch(
         `${API_URL}/employees/${localEmployee.id}/deactivate`,
-        { method: "PATCH", headers: { "Content-Type": "application/json" } },
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+        },
       );
       if (!response.ok) throw new Error("Deactivation failed");
       const saved = await response.json();
@@ -213,10 +226,9 @@ export function EmployeeProfile({
     setIsActioning(true);
     setActionError(null);
     try {
-      const response = await fetch(
-        `${API_URL}/employees/${localEmployee.id}`,
-        { method: "DELETE" },
-      );
+      const response = await fetch(`${API_URL}/employees/${localEmployee.id}`, {
+        method: "DELETE",
+      });
       if (!response.ok) throw new Error("Delete failed");
 
       moveToRecycleBin({
@@ -227,7 +239,6 @@ export function EmployeeProfile({
         deletedAt: new Date().toISOString(),
       });
 
-      // Remove from parent list and navigate back
       onEmployeeUpdate?.({ ...localEmployee, _deleted: true });
       setConfirmModal(null);
       onBack();
@@ -237,6 +248,55 @@ export function EmployeeProfile({
       setIsActioning(false);
     }
   };
+
+  const handleProfilePictureChange = async (file: File) => {
+    setProfilePicUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("profilePicture", file);
+      const res = await fetch(
+        `${API_URL}/employees/${localEmployee.id}/profile-picture`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+      if (!res.ok) throw new Error("Upload failed");
+      const saved = await res.json();
+      const updated = mapSavedToLocal(saved);
+      setLocalEmployee(updated);
+      onEmployeeUpdate?.(updated);
+    } catch (err) {
+      console.error("Profile picture upload failed:", err);
+    } finally {
+      setProfilePicUploading(false);
+    }
+  };
+
+  const handleIdDocumentChange = async (file: File) => {
+    setIdDocUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("idDocument", file);
+      const res = await fetch(
+        `${API_URL}/employees/${localEmployee.id}/id-document`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+      if (!res.ok) throw new Error("Upload failed");
+      const saved = await res.json();
+      const updated = mapSavedToLocal(saved);
+      setLocalEmployee(updated);
+      onEmployeeUpdate?.(updated);
+    } catch (err) {
+      console.error("ID document upload failed:", err);
+    } finally {
+      setIdDocUploading(false);
+    }
+  };
+
   const inputClass =
     "w-full px-3 py-2 rounded-lg border text-sm outline-none transition-all";
   const inputStyle = {
@@ -271,40 +331,67 @@ export function EmployeeProfile({
       {/* Profile Header */}
       <div
         className="px-8 py-6 border-b"
-        style={{
-          backgroundColor: "white",
-          borderColor: "var(--grey-200)",
-        }}
+        style={{ backgroundColor: "white", borderColor: "var(--grey-200)" }}
       >
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-start gap-6">
-            {/* Employee Photo */}
-            <div
-              className="size-24 rounded-full flex items-center justify-center text-white text-3xl font-bold"
-              style={{ backgroundColor: "var(--brand-blue)" }}
-            >
-              {(employee.fullName || "Unknown User")
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
-            </div>
+            {/* Employee Photo — editable */}
+            <label className="relative cursor-pointer group shrink-0">
+              <div
+                className="size-24 rounded-full flex items-center justify-center text-white text-3xl font-bold overflow-hidden"
+                style={{ backgroundColor: "var(--brand-blue)" }}
+              >
+                {localEmployee.profilePictureUrl ? (
+                  <img
+                    src={localEmployee.profilePictureUrl}
+                    alt={localEmployee.fullName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  (localEmployee.fullName || "Unknown User")
+                    .split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                )}
+              </div>
+              <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs transition-opacity">
+                {profilePicUploading ? "Uploading…" : "Change"}
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleProfilePictureChange(file);
+                }}
+              />
+            </label>
 
             {/* Employee Info */}
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-3xl" style={{ color: "var(--grey-900)" }}>
-                  {employee.fullName}
+                  {localEmployee.fullName}
                 </h1>
                 <span
                   className="px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1.5 text-white"
-                  style={{ backgroundColor: "var(--compliance-success)" }}
+                  style={{
+                    backgroundColor:
+                      localEmployee.status === "Inactive"
+                        ? "var(--grey-400)"
+                        : "var(--compliance-success)",
+                  }}
                 >
                   <CheckCircle2 className="size-4" />
-                  {employee.status}
+                  {localEmployee.status}
                 </span>
               </div>
-              <p className="text-lg mb-3" style={{ color: "var(--grey-600)" }}>
-                {employee.jobTitle}
+              <p className="text-lg mb-1" style={{ color: "var(--grey-600)" }}>
+                {localEmployee.jobTitle}
+              </p>
+              <p className="text-sm mb-3" style={{ color: "var(--grey-500)" }}>
+                {localEmployee.employeeId}
               </p>
               <div
                 className="flex items-center gap-6 text-sm"
@@ -312,21 +399,20 @@ export function EmployeeProfile({
               >
                 <div className="flex items-center gap-2">
                   <Mail className="size-4" />
-                  {employee.email}
+                  {localEmployee.email}
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="size-4" />
-                  {employee.mobile}
+                  {localEmployee.mobile}
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="size-4" />
-                  {employee.siteLocation}
+                  {localEmployee.siteLocation}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Action Buttons */}
           {/* Action Buttons */}
           <div className="flex items-center gap-2 relative">
             <button
@@ -357,7 +443,6 @@ export function EmployeeProfile({
               Edit Profile
             </button>
 
-            {/* ⋮ Actions dropdown */}
             <div className="relative">
               <button
                 onClick={() => setShowActionMenu((v) => !v)}
@@ -377,7 +462,6 @@ export function EmployeeProfile({
               </button>
               {showActionMenu && (
                 <>
-                  {/* Backdrop to close menu */}
                   <div
                     className="fixed inset-0 z-10"
                     onClick={() => setShowActionMenu(false)}
@@ -423,10 +507,7 @@ export function EmployeeProfile({
       {/* Tabbed Navigation */}
       <div
         className="border-b"
-        style={{
-          backgroundColor: "white",
-          borderColor: "var(--grey-200)",
-        }}
+        style={{ backgroundColor: "white", borderColor: "var(--grey-200)" }}
       >
         <div className="px-8">
           <div className="flex gap-1">
@@ -434,7 +515,7 @@ export function EmployeeProfile({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 text-sm font-medium transition-colors relative`}
+                className="px-4 py-3 text-sm font-medium transition-colors relative"
                 style={{
                   color:
                     activeTab === tab.id
@@ -442,14 +523,12 @@ export function EmployeeProfile({
                       : "var(--grey-600)",
                 }}
                 onMouseEnter={(e) => {
-                  if (activeTab !== tab.id) {
+                  if (activeTab !== tab.id)
                     e.currentTarget.style.color = "var(--grey-900)";
-                  }
                 }}
                 onMouseLeave={(e) => {
-                  if (activeTab !== tab.id) {
+                  if (activeTab !== tab.id)
                     e.currentTarget.style.color = "var(--grey-600)";
-                  }
                 }}
               >
                 {tab.label}
@@ -465,35 +544,39 @@ export function EmployeeProfile({
         </div>
       </div>
 
-      {/* <div>Tabs count: {tabs.length}</div> */}
       {/* Tab Content */}
       <div className="flex-1 overflow-auto p-8">
-        {activeTab === "personal" && <PersonalDetailsTab employee={employee} />}
+        {activeTab === "personal" && (
+          <PersonalDetailsTab
+            employee={localEmployee}
+            onIdDocumentUpload={handleIdDocumentChange}
+            idDocUploading={idDocUploading}
+          />
+        )}
         {activeTab === "appointments" && (
-          <LegalAppointments employeeId={employee.employeeId} />
+          <LegalAppointments employeeId={localEmployee.employeeId} />
         )}
         {activeTab === "training" && (
-          <TrainingMatrix employeeId={employee.employeeId} />
+          <TrainingMatrix employeeId={localEmployee.employeeId} />
         )}
         {activeTab === "medical" && (
-          <MedicalSurveillanceEnhanced employeeId={employee.employeeId} />
+          <MedicalSurveillanceEnhanced employeeId={localEmployee.employeeId} />
         )}
         {activeTab === "ppe" && (
-          <PPERegister employeeId={employee.employeeId} />
+          <PPERegister employeeId={localEmployee.employeeId} />
         )}
         {activeTab === "documents" && (
           <PlaceholderTab title="Scanned Documents" />
         )}
       </div>
 
-      {/* ── Edit Modal ─────────────────────────────────────────────── */}
+      {/* Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div
             className="w-full max-w-3xl rounded-xl bg-white shadow-xl flex flex-col"
             style={{ maxHeight: "90vh" }}
           >
-            {/* Modal Header */}
             <div
               className="px-6 py-4 border-b flex items-center justify-between"
               style={{ borderColor: "var(--grey-200)" }}
@@ -516,7 +599,6 @@ export function EmployeeProfile({
               </button>
             </div>
 
-            {/* Edit Tabs */}
             <div
               className="border-b px-6"
               style={{ borderColor: "var(--grey-200)" }}
@@ -546,7 +628,6 @@ export function EmployeeProfile({
               </div>
             </div>
 
-            {/* Edit Form Body */}
             <div className="flex-1 overflow-auto px-6 py-5">
               {/* Personal */}
               {editTab === "personal" && (
@@ -571,15 +652,6 @@ export function EmployeeProfile({
                     />
                   </div>
                   <div>
-                    <label style={labelStyle}>ID number</label>
-                    <input
-                      className={inputClass}
-                      style={inputStyle}
-                      value={editForm.id_number}
-                      onChange={set("id_number")}
-                    />
-                  </div>
-                  <div>
                     <label style={labelStyle}>Gender</label>
                     <select
                       className={inputClass}
@@ -592,7 +664,7 @@ export function EmployeeProfile({
                       <option>Female</option>
                     </select>
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     <label style={labelStyle}>Nationality</label>
                     <input
                       className={inputClass}
@@ -600,6 +672,49 @@ export function EmployeeProfile({
                       value={editForm.nationality}
                       onChange={set("nationality")}
                     />
+                  </div>
+                  <div className="col-span-2">
+                    <label style={labelStyle}>Employee ID document</label>
+                    <div className="flex items-center gap-3">
+                      {localEmployee.idDocumentUrl && (
+                        <a
+                          href={localEmployee.idDocumentUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm px-3 py-2 rounded-lg flex items-center gap-2"
+                          style={{
+                            backgroundColor: "var(--grey-100)",
+                            color: "var(--brand-blue)",
+                          }}
+                        >
+                          <IdCard className="size-4" />
+                          {localEmployee.idDocumentFileName ||
+                            "View current document"}
+                        </a>
+                      )}
+                      <label
+                        className="text-sm px-3 py-2 rounded-lg cursor-pointer"
+                        style={{
+                          backgroundColor: "var(--grey-100)",
+                          color: "var(--grey-700)",
+                        }}
+                      >
+                        {idDocUploading
+                          ? "Uploading…"
+                          : localEmployee.idDocumentUrl
+                            ? "Replace"
+                            : "Upload"}
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleIdDocumentChange(file);
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
@@ -648,80 +763,6 @@ export function EmployeeProfile({
                 </div>
               )}
 
-              {/* Reporting */}
-              {editTab === "reporting" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label style={labelStyle}>Reporting manager</label>
-                    <input
-                      className={inputClass}
-                      style={inputStyle}
-                      value={editForm.reporting_manager}
-                      onChange={set("reporting_manager")}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Manager employee ID</label>
-                    <input
-                      className={inputClass}
-                      style={inputStyle}
-                      value={editForm.reporting_manager_id}
-                      onChange={set("reporting_manager_id")}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Manager job title</label>
-                    <input
-                      className={inputClass}
-                      style={inputStyle}
-                      value={editForm.reporting_manager_job_title}
-                      onChange={set("reporting_manager_job_title")}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Legal appointment</label>
-                    <input
-                      className={inputClass}
-                      style={inputStyle}
-                      value={editForm.reporting_manager_legal_appointment}
-                      onChange={set("reporting_manager_legal_appointment")}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Department</label>
-                    <input
-                      className={inputClass}
-                      style={inputStyle}
-                      value={editForm.department}
-                      onChange={set("department")}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Division</label>
-                    <input
-                      className={inputClass}
-                      style={inputStyle}
-                      value={editForm.division}
-                      onChange={set("division")}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label style={labelStyle}>Organisational level</label>
-                    <select
-                      className={inputClass}
-                      style={inputStyle}
-                      value={editForm.organisational_level}
-                      onChange={set("organisational_level")}
-                    >
-                      <option value="">Select</option>
-                      <option>Operational</option>
-                      <option>Management</option>
-                      <option>Executive</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
               {/* Employment */}
               {editTab === "employment" && (
                 <div className="grid grid-cols-2 gap-4">
@@ -748,13 +789,44 @@ export function EmployeeProfile({
                     </select>
                   </div>
                   <div>
-                    <label style={labelStyle}>Employment type</label>
+                    <label style={labelStyle}>Reporting manager</label>
                     <input
+                      className={inputClass}
+                      style={inputStyle}
+                      value={editForm.reporting_manager}
+                      onChange={set("reporting_manager")}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Employment type</label>
+                    <select
                       className={inputClass}
                       style={inputStyle}
                       value={editForm.employment_type}
                       onChange={set("employment_type")}
-                    />
+                    >
+                      <option value="">Select</option>
+                      {employmentTypes.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Compliance status</label>
+                    <select
+                      className={inputClass}
+                      style={inputStyle}
+                      value={editForm.compliance_status}
+                      onChange={set("compliance_status")}
+                    >
+                      {complianceOptions.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label style={labelStyle}>Salary grade</label>
@@ -775,16 +847,18 @@ export function EmployeeProfile({
                       onChange={set("start_date")}
                     />
                   </div>
-                  <div>
-                    <label style={labelStyle}>Contract end date</label>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      style={inputStyle}
-                      value={editForm.contract_end_date}
-                      onChange={set("contract_end_date")}
-                    />
-                  </div>
+                  {editForm.employment_type === "Contract" && (
+                    <div>
+                      <label style={labelStyle}>Contract end date</label>
+                      <input
+                        type="date"
+                        className={inputClass}
+                        style={inputStyle}
+                        value={editForm.contract_end_date}
+                        onChange={set("contract_end_date")}
+                      />
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <label style={labelStyle}>Work schedule</label>
                     <textarea
@@ -794,6 +868,15 @@ export function EmployeeProfile({
                       value={editForm.work_schedule}
                       onChange={set("work_schedule")}
                     />
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs" style={{ color: "var(--grey-500)" }}>
+                      Length of service:{" "}
+                      <strong>
+                        {calculateServiceLength(editForm.start_date)}
+                      </strong>{" "}
+                      (calculated automatically from the start date)
+                    </p>
                   </div>
                 </div>
               )}
@@ -841,7 +924,6 @@ export function EmployeeProfile({
               )}
             </div>
 
-            {/* Modal Footer */}
             <div
               className="px-6 py-4 border-t flex items-center justify-between"
               style={{ borderColor: "var(--grey-200)" }}
@@ -905,6 +987,7 @@ export function EmployeeProfile({
           </div>
         </div>
       )}
+
       {/* Deactivate confirmation */}
       {confirmModal === "deactivate" && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1024,17 +1107,22 @@ export function EmployeeProfile({
   );
 }
 
-function PersonalDetailsTab({ employee }: { employee: any }) {
+function PersonalDetailsTab({
+  employee,
+  onIdDocumentUpload,
+  idDocUploading,
+}: {
+  employee: any;
+  onIdDocumentUpload: (file: File) => void;
+  idDocUploading: boolean;
+}) {
   return (
     <div className="max-w-5xl">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Personal Information */}
         <div
           className="rounded-lg border p-6"
-          style={{
-            backgroundColor: "white",
-            borderColor: "var(--grey-200)",
-          }}
+          style={{ backgroundColor: "white", borderColor: "var(--grey-200)" }}
         >
           <h2 className="text-xl mb-6" style={{ color: "var(--grey-900)" }}>
             Personal Information
@@ -1044,28 +1132,64 @@ function PersonalDetailsTab({ employee }: { employee: any }) {
             <InfoField label="Full Name" value={employee.fullName} />
             <InfoField
               label="Date of Birth"
-              value={new Date(employee.dateOfBirth).toLocaleDateString(
-                "en-ZA",
-                {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                },
-              )}
+              value={
+                employee.dateOfBirth
+                  ? new Date(employee.dateOfBirth).toLocaleDateString("en-ZA", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })
+                  : "N/A"
+              }
             />
-            <InfoField label="ID Number" value={employee.idNumber} />
             <InfoField label="Gender" value={employee.gender} />
             <InfoField label="Nationality" value={employee.nationality} />
+            <div>
+              <p className="text-sm mb-1" style={{ color: "var(--grey-600)" }}>
+                ID Document
+              </p>
+              {employee.idDocumentUrl ? (
+                <a
+                  href={employee.idDocumentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg"
+                  style={{
+                    backgroundColor: "var(--grey-100)",
+                    color: "var(--brand-blue)",
+                  }}
+                >
+                  <IdCard className="size-4" />
+                  {employee.idDocumentFileName || "View document"}
+                </a>
+              ) : (
+                <label
+                  className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg cursor-pointer"
+                  style={{
+                    backgroundColor: "var(--grey-100)",
+                    color: "var(--grey-700)",
+                  }}
+                >
+                  {idDocUploading ? "Uploading…" : "Upload ID document"}
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) onIdDocumentUpload(file);
+                    }}
+                  />
+                </label>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Contact Information */}
         <div
           className="rounded-lg border p-6"
-          style={{
-            backgroundColor: "white",
-            borderColor: "var(--grey-200)",
-          }}
+          style={{ backgroundColor: "white", borderColor: "var(--grey-200)" }}
         >
           <h2 className="text-xl mb-6" style={{ color: "var(--grey-900)" }}>
             Contact Information
@@ -1078,107 +1202,10 @@ function PersonalDetailsTab({ employee }: { employee: any }) {
           </div>
         </div>
 
-        {/* Reporting Structure - NEW SECTION */}
-        <div
-          className="rounded-lg border p-6"
-          style={{
-            backgroundColor: "white",
-            borderColor: "var(--grey-200)",
-          }}
-        >
-          <div className="flex items-center gap-2 mb-6">
-            <Network
-              className="size-5"
-              style={{ color: "var(--brand-blue)" }}
-            />
-            <h2 className="text-xl" style={{ color: "var(--grey-900)" }}>
-              Reporting Structure
-            </h2>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm mb-1" style={{ color: "var(--grey-600)" }}>
-                Line Manager / Supervisor
-              </p>
-              <div className="flex items-center gap-2">
-                <div
-                  className="size-8 rounded-full flex items-center justify-center text-white text-xs font-semibold"
-                  style={{ backgroundColor: "var(--brand-blue)" }}
-                >
-                  {(employee.reportingManager || "Unknown")
-                    .split(" ")
-                    .map((n: string) => n[0])
-                    .join("")}
-                </div>
-                <div>
-                  <p
-                    className="font-medium"
-                    style={{ color: "var(--grey-900)" }}
-                  >
-                    {employee.reportingManager}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--grey-500)" }}>
-                    {employee.reportingManagerId}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <InfoField
-              label="Supervisor Job Title"
-              value={employee.reportingManagerJobTitle}
-            />
-            <div>
-              <p className="text-sm mb-1" style={{ color: "var(--grey-600)" }}>
-                Supervisor Legal Appointment
-              </p>
-              <div className="flex items-center gap-2">
-                <Shield
-                  className="size-4"
-                  style={{ color: "var(--compliance-success)" }}
-                />
-                <p style={{ color: "var(--grey-900)" }}>
-                  {employee.reportingManagerLegalAppointment}
-                </p>
-              </div>
-            </div>
-            <InfoField
-              label="Department / Division"
-              value={`${employee.department} / ${employee.division}`}
-            />
-            <div>
-              <p className="text-sm mb-1" style={{ color: "var(--grey-600)" }}>
-                Organisational Level
-              </p>
-              <span
-                className="inline-block px-3 py-1 rounded-lg text-sm font-medium"
-                style={{
-                  backgroundColor:
-                    employee.organisationalLevel === "Executive"
-                      ? "rgba(147, 51, 234, 0.1)"
-                      : employee.organisationalLevel === "Management"
-                        ? "rgba(59, 130, 246, 0.1)"
-                        : "rgba(16, 185, 129, 0.1)",
-                  color:
-                    employee.organisationalLevel === "Executive"
-                      ? "#9333EA"
-                      : employee.organisationalLevel === "Management"
-                        ? "var(--brand-blue)"
-                        : "var(--compliance-success)",
-                }}
-              >
-                {employee.organisationalLevel}
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* Emergency Contact */}
         <div
           className="rounded-lg border p-6"
-          style={{
-            backgroundColor: "white",
-            borderColor: "var(--grey-200)",
-          }}
+          style={{ backgroundColor: "white", borderColor: "var(--grey-200)" }}
         >
           <h2 className="text-xl mb-6" style={{ color: "var(--grey-900)" }}>
             Emergency Contact
@@ -1193,17 +1220,13 @@ function PersonalDetailsTab({ employee }: { employee: any }) {
         {/* Employment Details */}
         <div
           className="rounded-lg border p-6"
-          style={{
-            backgroundColor: "white",
-            borderColor: "var(--grey-200)",
-          }}
+          style={{ backgroundColor: "white", borderColor: "var(--grey-200)" }}
         >
           <h2 className="text-xl mb-6" style={{ color: "var(--grey-900)" }}>
             Employment Details
           </h2>
           <div className="space-y-4">
             <InfoField label="Job Title" value={employee.jobTitle} />
-            <InfoField label="Department" value={employee.department} />
             <InfoField label="Site Location" value={employee.siteLocation} />
             <InfoField
               label="Reporting Manager"
@@ -1219,10 +1242,7 @@ function PersonalDetailsTab({ employee }: { employee: any }) {
         {/* Employment Timeline */}
         <div
           className="rounded-lg border p-6"
-          style={{
-            backgroundColor: "white",
-            borderColor: "var(--grey-200)",
-          }}
+          style={{ backgroundColor: "white", borderColor: "var(--grey-200)" }}
         >
           <h2 className="text-xl mb-6" style={{ color: "var(--grey-900)" }}>
             Employment Timeline
@@ -1230,19 +1250,19 @@ function PersonalDetailsTab({ employee }: { employee: any }) {
           <div className="space-y-4">
             <InfoField
               label="Start Date"
-              value={new Date(employee.startDate).toLocaleDateString("en-ZA", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
+              value={
+                employee.startDate
+                  ? new Date(employee.startDate).toLocaleDateString("en-ZA", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })
+                  : "N/A"
+              }
             />
             <InfoField
               label="Contract End Date"
               value={employee.contractEndDate || "N/A - Permanent"}
-            />
-            <InfoField
-              label="Length of Service"
-              value={calculateServiceLength(employee.startDate)}
             />
           </div>
         </div>
@@ -1250,10 +1270,7 @@ function PersonalDetailsTab({ employee }: { employee: any }) {
         {/* Compensation & Schedule */}
         <div
           className="rounded-lg border p-6"
-          style={{
-            backgroundColor: "white",
-            borderColor: "var(--grey-200)",
-          }}
+          style={{ backgroundColor: "white", borderColor: "var(--grey-200)" }}
         >
           <h2 className="text-xl mb-6" style={{ color: "var(--grey-900)" }}>
             Compensation & Schedule
@@ -1264,6 +1281,10 @@ function PersonalDetailsTab({ employee }: { employee: any }) {
               label="Work Schedule"
               value={employee.workSchedule}
               multiline
+            />
+            <InfoField
+              label="Length of Service"
+              value={calculateServiceLength(employee.startDate)}
             />
           </div>
         </div>
@@ -1286,9 +1307,7 @@ function InfoField({
       <p className="text-sm mb-1" style={{ color: "var(--grey-600)" }}>
         {label}
       </p>
-      <p className={multiline ? "" : ""} style={{ color: "var(--grey-900)" }}>
-        {value}
-      </p>
+      <p style={{ color: "var(--grey-900)" }}>{value || "N/A"}</p>
     </div>
   );
 }
@@ -1297,10 +1316,7 @@ function PlaceholderTab({ title }: { title: string }) {
   return (
     <div
       className="rounded-lg border p-12"
-      style={{
-        backgroundColor: "white",
-        borderColor: "var(--grey-200)",
-      }}
+      style={{ backgroundColor: "white", borderColor: "var(--grey-200)" }}
     >
       <div className="text-center">
         <FileText
@@ -1316,23 +1332,4 @@ function PlaceholderTab({ title }: { title: string }) {
       </div>
     </div>
   );
-}
-
-function calculateServiceLength(startDate: string): string {
-  const start = new Date(startDate);
-  const now = new Date();
-  const years = now.getFullYear() - start.getFullYear();
-  const months = now.getMonth() - start.getMonth();
-
-  let totalMonths = years * 12 + months;
-  const yearsPart = Math.floor(totalMonths / 12);
-  const monthsPart = totalMonths % 12;
-
-  if (yearsPart === 0) {
-    return `${monthsPart} month${monthsPart !== 1 ? "s" : ""}`;
-  } else if (monthsPart === 0) {
-    return `${yearsPart} year${yearsPart !== 1 ? "s" : ""}`;
-  } else {
-    return `${yearsPart} year${yearsPart !== 1 ? "s" : ""}, ${monthsPart} month${monthsPart !== 1 ? "s" : ""}`;
-  }
 }

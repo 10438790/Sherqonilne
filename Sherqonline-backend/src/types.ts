@@ -1,41 +1,51 @@
 export interface Employee {
   id?: number;
-  employeeId?: string;
+  employeeNumber?: string;
 
+  // Personal
   fullName: string;
-  dateOfBirth: string;
-  idNumber: string;
-  gender: string;
-  nationality: string;
+  dateOfBirth?: string;
+  gender?: string;
+  nationality?: string;
 
-  email: string;
-  phone: string;
-  mobile: string;
-  address: string;
+  // Contact
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  address?: string;
 
-  reportingManager: string;
-  reportingManagerId: string;
-  reportingManagerJobTitle: string;
-  reportingManagerLegalAppointment: string;
+  // Employment
+  reportingManager?: string;
+  jobTitle?: string;
+  siteLocation?: string;
+  employmentType?: string;
 
-  department: string;
-  division: string;
-  organisationalLevel: string;
+  // Timeline
+  startDate?: string;
+  contractEndDate?: string;
 
-  emergencyContact: string;
-  relationship: string;
-  emergencyPhone: string;
+  // Compensation
+  salaryGrade?: string;
+  workSchedule?: string;
 
-  jobTitle: string;
-  siteLocation: string;
-  employmentType: string;
+  // Compliance / status
+  complianceStatus?: "compliant" | "review" | "action";
+  status?: string;
 
-  startDate: string;
-  contractEndDate: string;
+  // Emergency contact
+  emergencyContact?: string;
+  relationship?: string;
+  emergencyPhone?: string;
 
-  salaryGrade: string;
-  workSchedule: string;
+  // ID document (Azure Blob)
+  idDocumentBlobName?: string;
+  idDocumentFileName?: string;
+  idDocumentSize?: number;
+  idDocumentMimeType?: string;
 
-  complianceStatus: string;
-  status: string;
+  // Profile picture (Azure Blob)
+  profilePictureBlobName?: string;
+  profilePictureFileName?: string;
+  profilePictureSize?: number;
+  profilePictureMimeType?: string;
 }
