@@ -11,7 +11,7 @@ import crypto from "crypto";
 
 const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
 const containerName =
-  process.env.AZURE_STORAGE_MEDICALS_CONTAINER || "medical-records";
+  process.env.AZURE_STORAGE_MEDICALS_CONTAINER || "medicals-records";
 
 if (!accountName) {
   throw new Error(
