@@ -517,7 +517,11 @@ CREATE INDEX IF NOT EXISTS idx_appointments_status
 
 CREATE TABLE IF NOT EXISTS training_records (
   id SERIAL PRIMARY KEY
+
+  
 );
+
+
 
 ALTER TABLE training_records
   ADD COLUMN IF NOT EXISTS employee_id INTEGER NOT NULL
@@ -526,7 +530,6 @@ ALTER TABLE training_records
   ADD COLUMN IF NOT EXISTS training_type VARCHAR(20)
     CHECK (training_type IN ('internal', 'external')),
 
-  ADD COLUMN IF NOT EXISTS training_name TEXT NOT NULL,
   ADD COLUMN IF NOT EXISTS certificate_name TEXT NOT NULL,
   ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL,
 
@@ -553,6 +556,15 @@ CREATE INDEX IF NOT EXISTS idx_training_records_employee_id
 CREATE INDEX IF NOT EXISTS idx_training_records_expiry_date
   ON training_records(expiry_date);
     `);
+
+    // ============================================================
+    // MIGRATION: REMOVE TRAINING NAME
+    // ============================================================
+
+    await client.query(`
+  ALTER TABLE training_records
+    DROP COLUMN IF EXISTS training_name;
+`);
 
     await client.query("COMMIT");
 

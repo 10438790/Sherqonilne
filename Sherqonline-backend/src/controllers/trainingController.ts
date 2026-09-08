@@ -19,7 +19,6 @@ function parseTrainingBody(body: any): TrainingRecordInput {
   return {
     employeeId: Number(body.employeeId),
     trainingType: body.trainingType || null,
-    trainingName: body.trainingName,
     certificateName: body.certificateName,
     provider: body.provider,
     trainingCategory: body.trainingCategory || "Safety",
@@ -39,7 +38,6 @@ export const addTrainingRecord = async (
 
     if (
       !data.employeeId ||
-      !data.trainingName ||
       !data.certificateName ||
       !data.provider ||
       !data.completionDate ||
@@ -47,7 +45,7 @@ export const addTrainingRecord = async (
     ) {
       res.status(400).json({
         error:
-          "employeeId, trainingName, certificateName, provider, completionDate, and expiryDate are required",
+          "employeeId, certificateName, provider, completionDate, and expiryDate are required",
       });
       return;
     }

@@ -21,7 +21,6 @@ const TRAINING_CATEGORIES = ["Safety", "Technical", "Compliance", "Other"];
 const emptyForm = {
   employeeId: "",
   trainingType: "" as "" | "internal" | "external",
-  trainingName: "",
   certificateName: "",
   provider: "",
   trainingCategory: "Safety",
@@ -62,7 +61,6 @@ export function AddTrainingRecordModal({
   const handleSubmit = async () => {
     if (
       !form.employeeId ||
-      !form.trainingName ||
       !form.certificateName ||
       !form.provider ||
       !form.completionDate ||
@@ -79,7 +77,6 @@ export function AddTrainingRecordModal({
       const formData = new FormData();
       formData.append("employeeId", form.employeeId);
       if (form.trainingType) formData.append("trainingType", form.trainingType);
-      formData.append("trainingName", form.trainingName);
       formData.append("certificateName", form.certificateName);
       formData.append("provider", form.provider);
       formData.append("trainingCategory", form.trainingCategory);
@@ -165,7 +162,7 @@ export function AddTrainingRecordModal({
               </div>
             </div>
 
-            <div>
+            {/* <div>
               <label className={labelClass} style={{ color: "var(--grey-700)" }}>Training Name *</label>
               <input
                 type="text"
@@ -175,7 +172,7 @@ export function AddTrainingRecordModal({
                 className={inputClass}
                 style={inputStyle}
               />
-            </div>
+            </div> */}
 
             <div>
               <label className={labelClass} style={{ color: "var(--grey-700)" }}>Certificate Name *</label>

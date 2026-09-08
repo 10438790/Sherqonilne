@@ -3,7 +3,6 @@ import pool from "../config/db";
 export interface TrainingRecordInput {
   employeeId: number;
   trainingType?: "internal" | "external" | null;
-  trainingName: string;
   certificateName: string;
   provider: string;
   trainingCategory: string;
@@ -27,7 +26,6 @@ const SELECT_BASE = `
     e.full_name           AS employee_name,
     e.site_location,
     tr.training_type,
-    tr.training_name,
     tr.certificate_name,
     tr.provider,
     tr.training_category,
@@ -51,17 +49,16 @@ export async function createTrainingRecord(
   const result = await pool.query(
     `
     INSERT INTO training_records (
-      employee_id, training_type, training_name, certificate_name, provider,
+      employee_id, training_type, certificate_name, provider,
       training_category, is_legally_required, completion_date, expiry_date,
       file_blob_name, file_name, file_size, file_mime_type
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
     RETURNING id
     `,
     [
       data.employeeId,
       data.trainingType || null,
-      data.trainingName,
       data.certificateName,
       data.provider,
       data.trainingCategory || "Safety",
@@ -119,7 +116,6 @@ export async function updateTrainingRecord(
 
   const fieldMap: Record<string, string> = {
     trainingType: "training_type",
-    trainingName: "training_name",
     certificateName: "certificate_name",
     provider: "provider",
     trainingCategory: "training_category",
