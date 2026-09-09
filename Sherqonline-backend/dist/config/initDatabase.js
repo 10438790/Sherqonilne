@@ -24,7 +24,6 @@ async function initializeDatabase() {
         ADD COLUMN IF NOT EXISTS employee_number VARCHAR(20),
         ADD COLUMN IF NOT EXISTS full_name TEXT,
         ADD COLUMN IF NOT EXISTS date_of_birth DATE,
-        ADD COLUMN IF NOT EXISTS id_number VARCHAR(20),
         ADD COLUMN IF NOT EXISTS gender VARCHAR(20),
         ADD COLUMN IF NOT EXISTS nationality VARCHAR(100),
         ADD COLUMN IF NOT EXISTS email VARCHAR(255),
@@ -32,12 +31,6 @@ async function initializeDatabase() {
         ADD COLUMN IF NOT EXISTS mobile VARCHAR(50),
         ADD COLUMN IF NOT EXISTS address TEXT,
         ADD COLUMN IF NOT EXISTS reporting_manager TEXT,
-        ADD COLUMN IF NOT EXISTS reporting_manager_id TEXT,
-        ADD COLUMN IF NOT EXISTS reporting_manager_job_title TEXT,
-        ADD COLUMN IF NOT EXISTS reporting_manager_legal_appointment TEXT,
-        ADD COLUMN IF NOT EXISTS department TEXT,
-        ADD COLUMN IF NOT EXISTS division TEXT,
-        ADD COLUMN IF NOT EXISTS organisational_level TEXT,
         ADD COLUMN IF NOT EXISTS emergency_contact TEXT,
         ADD COLUMN IF NOT EXISTS relationship TEXT,
         ADD COLUMN IF NOT EXISTS emergency_phone TEXT,
@@ -48,8 +41,48 @@ async function initializeDatabase() {
         ADD COLUMN IF NOT EXISTS contract_end_date DATE,
         ADD COLUMN IF NOT EXISTS salary_grade TEXT,
         ADD COLUMN IF NOT EXISTS work_schedule TEXT,
-        ADD COLUMN IF NOT EXISTS compliance_status TEXT,
+        ADD COLUMN IF NOT EXISTS compliance_status TEXT DEFAULT 'compliant',
         ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Active';
+    `);
+        /*
+         * ------------------------------------------------------------
+         * MIGRATION: Reporting Structure fields and ID Number are
+         * removed from the product. ID Number is replaced by an
+         * uploaded ID document (Azure Blob, see columns below).
+         * Reporting Structure (manager ID/job title/legal appointment,
+         * department, division, organisational level) is dropped
+         * entirely — "reporting_manager" (plain text name) is the only
+         * survivor and lives under Employment Details now.
+         * ------------------------------------------------------------
+         */
+        await client.query(`
+      ALTER TABLE employees
+        DROP COLUMN IF EXISTS id_number,
+        DROP COLUMN IF EXISTS reporting_manager_id,
+        DROP COLUMN IF EXISTS reporting_manager_job_title,
+        DROP COLUMN IF EXISTS reporting_manager_legal_appointment,
+        DROP COLUMN IF EXISTS department,
+        DROP COLUMN IF EXISTS division,
+        DROP COLUMN IF EXISTS organisational_level;
+    `);
+        /*
+         * ------------------------------------------------------------
+         * ID DOCUMENT + PROFILE PICTURE (Azure Blob Storage)
+         * ------------------------------------------------------------
+         * Same pattern as medical_records / training_records: only
+         * blob metadata lives in Postgres, the file itself lives in
+         * Azure Blob Storage behind a short-lived SAS URL.
+         */
+        await client.query(`
+      ALTER TABLE employees
+        ADD COLUMN IF NOT EXISTS id_document_blob_name TEXT,
+        ADD COLUMN IF NOT EXISTS id_document_file_name TEXT,
+        ADD COLUMN IF NOT EXISTS id_document_size INTEGER,
+        ADD COLUMN IF NOT EXISTS id_document_mime_type VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS profile_picture_blob_name TEXT,
+        ADD COLUMN IF NOT EXISTS profile_picture_file_name TEXT,
+        ADD COLUMN IF NOT EXISTS profile_picture_size INTEGER,
+        ADD COLUMN IF NOT EXISTS profile_picture_mime_type VARCHAR(255);
     `);
         /*
          * ============================================================
@@ -463,7 +496,11 @@ CREATE INDEX IF NOT EXISTS idx_appointments_status
 
 CREATE TABLE IF NOT EXISTS training_records (
   id SERIAL PRIMARY KEY
+
+  
 );
+
+
 
 ALTER TABLE training_records
   ADD COLUMN IF NOT EXISTS employee_id INTEGER NOT NULL
@@ -472,7 +509,6 @@ ALTER TABLE training_records
   ADD COLUMN IF NOT EXISTS training_type VARCHAR(20)
     CHECK (training_type IN ('internal', 'external')),
 
-  ADD COLUMN IF NOT EXISTS training_name TEXT NOT NULL,
   ADD COLUMN IF NOT EXISTS certificate_name TEXT NOT NULL,
   ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL,
 
@@ -499,6 +535,13 @@ CREATE INDEX IF NOT EXISTS idx_training_records_employee_id
 CREATE INDEX IF NOT EXISTS idx_training_records_expiry_date
   ON training_records(expiry_date);
     `);
+        // ============================================================
+        // MIGRATION: REMOVE TRAINING NAME
+        // ============================================================
+        await client.query(`
+  ALTER TABLE training_records
+    DROP COLUMN IF EXISTS training_name;
+`);
         await client.query("COMMIT");
         console.log("✅ Database initialization/migration successful");
     }

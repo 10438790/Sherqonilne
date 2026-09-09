@@ -12,7 +12,7 @@ const createEmployee = async (employee) => {
         // Get the next database ID
         const idResult = await client.query(`SELECT nextval('employees_id_seq') AS id`);
         const newId = Number(idResult.rows[0].id);
-        // Generate employee number
+        // Auto-generate employee number: EMP001, EMP002, EMP003 …
         const employeeNumber = `EMP${newId.toString().padStart(3, "0")}`;
         const result = await client.query(`
       INSERT INTO employees (
@@ -20,7 +20,6 @@ const createEmployee = async (employee) => {
         employee_number,
         full_name,
         date_of_birth,
-        id_number,
         gender,
         nationality,
         email,
@@ -28,12 +27,6 @@ const createEmployee = async (employee) => {
         mobile,
         address,
         reporting_manager,
-        reporting_manager_id,
-        reporting_manager_job_title,
-        reporting_manager_legal_appointment,
-        department,
-        division,
-        organisational_level,
         emergency_contact,
         relationship,
         emergency_phone,
@@ -50,7 +43,7 @@ const createEmployee = async (employee) => {
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30
+        $21, $22, $23
       )
       RETURNING *
       `, [
@@ -58,7 +51,6 @@ const createEmployee = async (employee) => {
             employeeNumber,
             employee.fullName,
             employee.dateOfBirth || null,
-            employee.idNumber || null,
             employee.gender || null,
             employee.nationality || null,
             employee.email || null,
@@ -66,12 +58,6 @@ const createEmployee = async (employee) => {
             employee.mobile || null,
             employee.address || null,
             employee.reportingManager || null,
-            employee.reportingManagerId || null,
-            employee.reportingManagerJobTitle || null,
-            employee.reportingManagerLegalAppointment || null,
-            employee.department || null,
-            employee.division || null,
-            employee.organisationalLevel || null,
             employee.emergencyContact || null,
             employee.relationship || null,
             employee.emergencyPhone || null,
@@ -82,7 +68,7 @@ const createEmployee = async (employee) => {
             employee.contractEndDate || null,
             employee.salaryGrade || null,
             employee.workSchedule || null,
-            employee.complianceStatus || "Pending",
+            employee.complianceStatus || "compliant",
             employee.status || "Active",
         ]);
         await client.query("COMMIT");
@@ -123,17 +109,15 @@ const deleteEmployee = async (id) => {
     const result = await db_1.default.query(`
     DELETE FROM employees
     WHERE id = $1
-    RETURNING id
+    RETURNING id, id_document_blob_name, profile_picture_blob_name
     `, [id]);
     return result.rows[0];
 };
 exports.deleteEmployee = deleteEmployee;
 const updateEmployee = async (id, employee) => {
-    // Convert frontend camelCase fields to database snake_case fields
     const fieldMap = {
         fullName: "full_name",
         dateOfBirth: "date_of_birth",
-        idNumber: "id_number",
         gender: "gender",
         nationality: "nationality",
         email: "email",
@@ -141,12 +125,6 @@ const updateEmployee = async (id, employee) => {
         mobile: "mobile",
         address: "address",
         reportingManager: "reporting_manager",
-        reportingManagerId: "reporting_manager_id",
-        reportingManagerJobTitle: "reporting_manager_job_title",
-        reportingManagerLegalAppointment: "reporting_manager_legal_appointment",
-        department: "department",
-        division: "division",
-        organisationalLevel: "organisational_level",
         emergencyContact: "emergency_contact",
         relationship: "relationship",
         emergencyPhone: "emergency_phone",
@@ -159,6 +137,14 @@ const updateEmployee = async (id, employee) => {
         workSchedule: "work_schedule",
         complianceStatus: "compliance_status",
         status: "status",
+        idDocumentBlobName: "id_document_blob_name",
+        idDocumentFileName: "id_document_file_name",
+        idDocumentSize: "id_document_size",
+        idDocumentMimeType: "id_document_mime_type",
+        profilePictureBlobName: "profile_picture_blob_name",
+        profilePictureFileName: "profile_picture_file_name",
+        profilePictureSize: "profile_picture_size",
+        profilePictureMimeType: "profile_picture_mime_type",
     };
     const updates = [];
     const values = [];

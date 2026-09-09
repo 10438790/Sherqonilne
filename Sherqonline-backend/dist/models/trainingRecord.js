@@ -17,7 +17,6 @@ const SELECT_BASE = `
     e.full_name           AS employee_name,
     e.site_location,
     tr.training_type,
-    tr.training_name,
     tr.certificate_name,
     tr.provider,
     tr.training_category,
@@ -36,16 +35,15 @@ const SELECT_BASE = `
 async function createTrainingRecord(data, file) {
     const result = await db_1.default.query(`
     INSERT INTO training_records (
-      employee_id, training_type, training_name, certificate_name, provider,
+      employee_id, training_type, certificate_name, provider,
       training_category, is_legally_required, completion_date, expiry_date,
       file_blob_name, file_name, file_size, file_mime_type
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
     RETURNING id
     `, [
         data.employeeId,
         data.trainingType || null,
-        data.trainingName,
         data.certificateName,
         data.provider,
         data.trainingCategory || "Safety",
@@ -83,7 +81,6 @@ async function updateTrainingRecord(id, data) {
     const values = [];
     const fieldMap = {
         trainingType: "training_type",
-        trainingName: "training_name",
         certificateName: "certificate_name",
         provider: "provider",
         trainingCategory: "training_category",

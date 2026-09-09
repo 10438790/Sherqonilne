@@ -10,7 +10,7 @@ const storage_blob_1 = require("@azure/storage-blob");
 const identity_1 = require("@azure/identity");
 const crypto_1 = __importDefault(require("crypto"));
 const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
-const containerName = process.env.AZURE_STORAGE_MEDICALS_CONTAINER || "medical-records";
+const containerName = process.env.AZURE_STORAGE_MEDICALS_CONTAINER || "medicals-records";
 if (!accountName) {
     throw new Error("AZURE_STORAGE_ACCOUNT_NAME environment variable is required");
 }

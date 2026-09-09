@@ -5,11 +5,10 @@ import {
   generateBlobSASQueryParameters,
 } from "@azure/storage-blob";
 
-import { DefaultAzureCredential } from "@azure/identity";
-
 import crypto from "crypto";
 
 const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
+const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
 
 const idDocumentsContainerName =
   process.env.AZURE_STORAGE_EMPLOYEE_ID_DOCS_CONTAINER ||
@@ -19,17 +18,20 @@ const profilePicturesContainerName =
   process.env.AZURE_STORAGE_EMPLOYEE_PROFILE_PICTURES_CONTAINER ||
   "employee-profile-pictures";
 
-if (!accountName) {
+if (!accountName || !accountKey) {
   throw new Error(
-    "AZURE_STORAGE_ACCOUNT_NAME environment variable is required",
+    "AZURE_STORAGE_ACCOUNT_NAME and AZURE_STORAGE_ACCOUNT_KEY environment variables are required",
   );
 }
 
-const credential = new DefaultAzureCredential();
+const sharedKeyCredential = new StorageSharedKeyCredential(
+  accountName,
+  accountKey,
+);
 
 const blobServiceClient = new BlobServiceClient(
   `https://${accountName}.blob.core.windows.net`,
-  credential,
+  sharedKeyCredential,
 );
 
 const idDocumentsContainerClient = blobServiceClient.getContainerClient(

@@ -17,7 +17,7 @@ dotenv_1.default.config();
 // through a per-file SAS URL anyway, never a directory listing.
 const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
 const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
-const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || "medical-records";
+const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || "medicals-records";
 const sharedKeyCredential = new storage_blob_1.StorageSharedKeyCredential(accountName, accountKey);
 const blobServiceClient = new storage_blob_1.BlobServiceClient(`https://${accountName}.blob.core.windows.net`, sharedKeyCredential);
 const containerClient = blobServiceClient.getContainerClient(containerName);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Mail,
@@ -11,6 +11,7 @@ import {
   UserX,
   Trash2,
   IdCard,
+  Camera,
 } from "lucide-react";
 import { TrainingMatrix } from "../components/Training-Matrix/training-matrix";
 import { LegalAppointments } from "./legal-appointments";
@@ -169,6 +170,36 @@ export function EmployeeProfile({
     profilePictureFileName: saved.profile_picture_file_name,
     profilePictureUrl: saved.profile_picture_url,
   });
+
+  // Re-sync local state whenever a different employee is opened —
+  // guards against stale state if this component instance is reused
+  // across selections.
+  useEffect(() => {
+    setLocalEmployee(employee);
+    setEditForm({
+      full_name: employee.fullName ?? "",
+      date_of_birth: employee.dateOfBirth?.split("T")[0] ?? "",
+      gender: employee.gender ?? "",
+      nationality: employee.nationality ?? "",
+      email: employee.email ?? "",
+      phone: employee.phone ?? "",
+      mobile: employee.mobile ?? "",
+      address: employee.address ?? "",
+      reporting_manager: employee.reportingManager ?? "",
+      job_title: employee.jobTitle ?? "",
+      site_location: employee.siteLocation ?? "",
+      employment_type: employee.employmentType ?? "",
+      compliance_status: employee.complianceStatus ?? "compliant",
+      salary_grade: employee.salaryGrade ?? "",
+      start_date: employee.startDate?.split("T")[0] ?? "",
+      contract_end_date: employee.contractEndDate?.split("T")[0] ?? "",
+      work_schedule: employee.workSchedule ?? "",
+      emergency_contact: employee.emergencyContact ?? "",
+      relationship: employee.relationship ?? "",
+      emergency_phone: employee.emergencyPhone ?? "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee.id]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -356,6 +387,16 @@ export function EmployeeProfile({
               </div>
               <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs transition-opacity">
                 {profilePicUploading ? "Uploading…" : "Change"}
+              </div>
+              {/* Persistent camera badge — always visible, not just on hover */}
+              <div
+                className="absolute -bottom-1 -right-1 size-8 rounded-full flex items-center justify-center border-2"
+                style={{
+                  backgroundColor: "var(--brand-blue)",
+                  borderColor: "white",
+                }}
+              >
+                <Camera className="size-4 text-white" />
               </div>
               <input
                 type="file"

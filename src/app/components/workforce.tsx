@@ -9,6 +9,7 @@ import {
   XCircle,
   Trash2,
   UserX,
+  Camera,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { EmployeeProfile } from "../components/employee-profile";
@@ -33,6 +34,46 @@ interface SiteOption {
   name: string;
 }
 
+/**
+ * Maps a raw DB row (snake_case, as returned by the /employees API)
+ * into the frontend Employee shape (camelCase). This is the single
+ * source of truth for that mapping — every place that turns an API
+ * response into an Employee (fetch list, create, upload picture,
+ * upload document) should route through this function so nothing
+ * gets silently dropped again.
+ */
+function mapApiEmployee(employee: any): Employee {
+  return {
+    id: employee.id.toString(),
+    employeeId: employee.employee_number ?? "",
+    fullName: employee.full_name,
+    dateOfBirth: employee.date_of_birth,
+    gender: employee.gender,
+    nationality: employee.nationality,
+    email: employee.email,
+    phone: employee.phone,
+    mobile: employee.mobile,
+    address: employee.address,
+    reportingManager: employee.reporting_manager,
+    jobTitle: employee.job_title,
+    siteLocation: employee.site_location,
+    employmentType: employee.employment_type,
+    startDate: employee.start_date,
+    contractEndDate: employee.contract_end_date,
+    salaryGrade: employee.salary_grade,
+    workSchedule: employee.work_schedule,
+    complianceStatus: employee.compliance_status,
+    status: employee.status,
+    emergencyContact: employee.emergency_contact,
+    relationship: employee.relationship,
+    emergencyPhone: employee.emergency_phone,
+    idDocumentFileName: employee.id_document_file_name,
+    idDocumentUrl: employee.id_document_url,
+    profilePictureFileName: employee.profile_picture_file_name,
+    profilePictureUrl: employee.profile_picture_url,
+  };
+}
+
 export function Workforce() {
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
   const { colors } = useTheme();
@@ -50,8 +91,6 @@ export function Workforce() {
   const [currentStep, setCurrentStep] = useState(1);
   const [availableSites, setAvailableSites] = useState<SiteOption[]>([]);
 
-  // Row action menu — rendered via portal, position:fixed, so it can't be
-  // clipped by the table's overflow-hidden / overflow-x-auto ancestors.
   const [menuAnchor, setMenuAnchor] = useState<{
     employee: Employee;
     x: number;
@@ -71,29 +110,16 @@ export function Workforce() {
   }, []);
 
   const fetchEmployees = async () => {
-  try {
-    const response = await fetch(`${API_URL}/employees`);
+    try {
+      const response = await fetch(`${API_URL}/employees`);
+      if (!response.ok) throw new Error("Failed to fetch employees");
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch employees");
+      setEmployeeList(data.map(mapApiEmployee));
+    } catch (error) {
+      console.error("Error fetching employees:", error);
     }
-
-    const data = await response.json();
-
-    console.log("EMPLOYEE DATA FROM API:", data);
-
-    const formatted: Employee[] = data.map((employee: any) => ({
-      id: employee.id.toString(),
-      employeeId: employee.employee_number,
-      fullName: employee.full_name,
-      // ...
-    }));
-
-    setEmployeeList(formatted);
-  } catch (error) {
-    console.error("Error fetching employees:", error);
-  }
-};
+  };
 
   const filteredEmployees = employeeList.filter((employee) => {
     const matchesSite =
@@ -111,6 +137,8 @@ export function Workforce() {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [idDocumentFile, setIdDocumentFile] = useState<File | null>(null);
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
 
   const emptyNewEmployee = {
     fullName: "",
@@ -143,6 +171,15 @@ export function Workforce() {
 
   const [newEmployee, setNewEmployee] = useState(emptyNewEmployee);
 
+  const resetAddModal = () => {
+    setShowAddModal(false);
+    setCurrentStep(1);
+    setIdDocumentFile(null);
+    setProfilePictureFile(null);
+    setProfilePicturePreview(null);
+    setNewEmployee(emptyNewEmployee);
+  };
+
   const handleSaveEmployee = async () => {
     try {
       const response = await fetch(`${API_URL}/employees`, {
@@ -161,11 +198,11 @@ export function Workforce() {
       let savedEmployee = JSON.parse(responseText);
 
       // The employee number and DB id only exist once the record is
-      // created, so the ID document upload always happens second.
+      // created, so both file uploads always happen second.
       if (idDocumentFile) {
-        const formData = new FormData();
-        formData.append("idDocument", idDocumentFile);
         try {
+          const formData = new FormData();
+          formData.append("idDocument", idDocumentFile);
           const uploadRes = await fetch(
             `${API_URL}/employees/${savedEmployee.id}/id-document`,
             { method: "POST", body: formData },
@@ -180,41 +217,28 @@ export function Workforce() {
         }
       }
 
-      const formattedEmployee: Employee = {
-        id: savedEmployee.id.toString(),
-        employeeId: savedEmployee.employee_number  ?? "",
-        fullName: savedEmployee.full_name,
-        dateOfBirth: savedEmployee.date_of_birth,
-        gender: savedEmployee.gender,
-        nationality: savedEmployee.nationality,
-        email: savedEmployee.email,
-        phone: savedEmployee.phone,
-        mobile: savedEmployee.mobile,
-        address: savedEmployee.address,
-        reportingManager: savedEmployee.reporting_manager,
-        jobTitle: savedEmployee.job_title,
-        siteLocation: savedEmployee.site_location,
-        employmentType: savedEmployee.employment_type,
-        startDate: savedEmployee.start_date,
-        contractEndDate: savedEmployee.contract_end_date,
-        salaryGrade: savedEmployee.salary_grade,
-        workSchedule: savedEmployee.work_schedule,
-        complianceStatus: savedEmployee.compliance_status,
-        status: savedEmployee.status,
-        emergencyContact: savedEmployee.emergency_contact,
-        relationship: savedEmployee.relationship,
-        emergencyPhone: savedEmployee.emergency_phone,
-        idDocumentFileName: savedEmployee.id_document_file_name,
-        idDocumentUrl: savedEmployee.id_document_url,
-        profilePictureFileName: savedEmployee.profile_picture_file_name,
-        profilePictureUrl: savedEmployee.profile_picture_url,
-      };
+      if (profilePictureFile) {
+        try {
+          const formData = new FormData();
+          formData.append("profilePicture", profilePictureFile);
+          const uploadRes = await fetch(
+            `${API_URL}/employees/${savedEmployee.id}/profile-picture`,
+            { method: "POST", body: formData },
+          );
+          if (uploadRes.ok) {
+            savedEmployee = await uploadRes.json();
+          } else {
+            console.error("Employee saved, but profile picture upload failed");
+          }
+        } catch (uploadErr) {
+          console.error("Profile picture upload error:", uploadErr);
+        }
+      }
+
+      const formattedEmployee = mapApiEmployee(savedEmployee);
 
       setEmployeeList((prev) => [...prev, formattedEmployee]);
-      setShowAddModal(false);
-      setCurrentStep(1);
-      setIdDocumentFile(null);
-      setNewEmployee(emptyNewEmployee);
+      resetAddModal();
     } catch (error) {
       console.error("Failed to save employee:", error);
     }
@@ -431,6 +455,20 @@ export function Workforce() {
                         </td>
                         <td className="px-6 py-4 text-sm" style={{ color: colors.primaryText }}>
                           <div className="flex items-center gap-2">
+                            {employee.profilePictureUrl ? (
+                              <img
+                                src={employee.profilePictureUrl}
+                                alt={employee.fullName}
+                                className="size-7 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className="size-7 rounded-full flex items-center justify-center text-white text-xs font-semibold"
+                                style={{ backgroundColor: "var(--brand-blue)" }}
+                              >
+                                {employee.fullName?.split(" ").map((n) => n[0]).join("")}
+                              </div>
+                            )}
                             {employee.fullName}
                             {employee.status === "Inactive" && (
                               <span
@@ -563,6 +601,51 @@ export function Workforce() {
                   <p className="text-xs mb-4" style={{ color: colors.subText }}>
                     Employee ID (e.g. EMP004) is generated automatically once you save.
                   </p>
+
+                  {/* Profile picture picker */}
+                  <div className="flex items-center gap-4 mb-6">
+                    <label className="relative cursor-pointer group shrink-0">
+                      <div
+                        className="size-20 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden"
+                        style={{ backgroundColor: "var(--brand-blue)" }}
+                      >
+                        {profilePicturePreview ? (
+                          <img src={profilePicturePreview} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <Camera className="size-7 opacity-80" />
+                        )}
+                      </div>
+                      <div
+                        className="absolute -bottom-1 -right-1 size-7 rounded-full flex items-center justify-center border-2"
+                        style={{ backgroundColor: "#3B82F6", borderColor: colors.surface }}
+                      >
+                        <Camera className="size-3.5 text-white" />
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          setProfilePictureFile(file);
+                          if (file) {
+                            setProfilePicturePreview(URL.createObjectURL(file));
+                          } else {
+                            setProfilePicturePreview(null);
+                          }
+                        }}
+                      />
+                    </label>
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: colors.primaryText }}>
+                        Profile Picture
+                      </p>
+                      <p className="text-xs" style={{ color: colors.subText }}>
+                        Optional — click the camera icon to upload
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={labelClass} style={{ color: colors.primaryText }}>Full Name</label>
@@ -832,12 +915,7 @@ export function Workforce() {
                 </button>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => {
-                      setShowAddModal(false);
-                      setCurrentStep(1);
-                      setIdDocumentFile(null);
-                      setNewEmployee(emptyNewEmployee);
-                    }}
+                    onClick={resetAddModal}
                     className="px-5 py-2 rounded-lg"
                     style={{ backgroundColor: colors.background, color: colors.primaryText }}
                   >
